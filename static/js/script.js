@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resolutionSelect = document.getElementById('resolution');
     const qualitySelect = document.getElementById('quality');
     const audioFileSelect = document.getElementById('audioFileSelect');
+    const imageFileSelect = document.getElementById('imageFileSelect');
     const videoFileSelect = document.getElementById('videoFileSelect');
 
     let audioPath = null;
@@ -67,6 +68,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
+        fetch('/list_image_files')
+            .then(response => response.json())
+            .then(data => {
+                imageFileSelect.innerHTML = '<option value="">Select an image file</option>';
+                data.forEach(file => {
+                    const option = document.createElement('option');
+                    option.value = file;
+                    option.textContent = file;
+                    imageFileSelect.appendChild(option);
+                });
+            });
+
         fetch('/list_video_files')
             .then(response => response.json())
             .then(data => {
@@ -80,7 +93,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // Call this function when the page loads and after successful uploads
     fetchUploadedFiles();
 
     audioFile.addEventListener('change', (event) => {
@@ -178,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateUploadIndicator(imageUploadIndicator, true);
                 imagePath = data.path;
                 checkCreateVideoEnabled();
+                fetchUploadedFiles();
             }
         })
         .catch(error => {
@@ -202,8 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                audio_path: audioPath,
-                image_path: imagePath,
+                audio_filename: audioPath.split('/').pop(),
+                image_filename: imagePath.split('/').pop(),
                 resolution: resolutionSelect.value,
                 quality: qualitySelect.value
             })
@@ -302,6 +315,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (this.value) {
             audioPath = '/uploads/audio/' + this.value;
             showSuccess(audioMessage, 'Selected audio file: ' + this.value);
+            checkCreateVideoEnabled();
+        }
+    });
+
+    imageFileSelect.addEventListener('change', function() {
+        if (this.value) {
+            imagePath = '/uploads/images/' + this.value;
+            showSuccess(imageMessage, 'Selected image file: ' + this.value);
             checkCreateVideoEnabled();
         }
     });

@@ -1,0 +1,75 @@
+X-Replit-User-Name: 
+X-Replit-User-Profile-Image: 
+X-Replit-User-Roles: 
+X-Replit-User-Teams: 
+X-Replit-User-Url: 
+
+
+DEBUG:app:Received POST data: {'audio_filename': 'sample_audio.mp3', 'image_filename': '1331372.png', 'resolution': '480p', 'quality': 'medium'}
+INFO:app:Audio path: uploads/audio/sample_audio.mp3
+INFO:app:Image path: uploads/images/1331372.png
+INFO:app:Audio file exists: True
+INFO:app:Image file exists: True
+INFO:app:Video creation parameters stored in session
+INFO:werkzeug:172.31.196.49 - - [05/Oct/2024 16:12:07] "POST /create_video HTTP/1.1" 202 -
+INFO:app:Received video creation request: GET
+DEBUG:app:Request headers: Host: a93fef2e-508e-4996-890c-77f6b7cae71e-00-1uqyfa2ka384u.sisko.replit.dev
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36
+Accept: text/event-stream
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: en-US,en;q=0.9
+Cache-Control: no-cache
+Cookie: session=.eJxdytEKwjAMQNF_ybOszgrKfmYEGmagWePSCDL276t99PEe7g4fTlRmxQ3FYNoBPfGv6wsmcM0Fk4WOwVA009xjEI1wARZc6P_uaGGMcYyP26Dr0s63Y-b6bZtQYpdGG1nJXrmsTe_Pq8JxnMtpMkg.ZwFlVw.OQmjmC7NTwhGme7vRI1WM3-pcpk
+Dnt: 1
+Referer: https://a93fef2e-508e-4996-890c-77f6b7cae71e-00-1uqyfa2ka384u.sisko.replit.dev/
+Sec-Ch-Ua: "Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"
+Sec-Ch-Ua-Mobile: ?0
+Sec-Ch-Ua-Platform: "macOS"
+Sec-Fetch-Dest: empty
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: same-origin
+X-Forwarded-For: 103.95.173.184, 10.84.5.49
+X-Forwarded-Proto: https
+X-Replit-User-Bio: 
+X-Replit-User-Id: 
+X-Replit-User-Name: 
+X-Replit-User-Profile-Image: 
+X-Replit-User-Roles: 
+X-Replit-User-Teams: 
+X-Replit-User-Url: 
+
+
+INFO:app:GET request received, starting SSE connection
+INFO:app:Starting generate_progress function
+INFO:app:Video creation parameters: audio=uploads/audio/sample_audio.mp3, image=uploads/images/1331372.png, resolution=480p, quality=medium
+DEBUG:PIL.PngImagePlugin:STREAM b'IHDR' 16 13
+DEBUG:PIL.PngImagePlugin:STREAM b'tEXt' 41 1221
+DEBUG:PIL.PngImagePlugin:STREAM b'IDAT' 1274 65536
+DEBUG:PIL.PngImagePlugin:STREAM b'IHDR' 16 13
+DEBUG:PIL.PngImagePlugin:STREAM b'tEXt' 41 1221
+DEBUG:PIL.PngImagePlugin:STREAM b'IDAT' 1274 65536
+DEBUG:PIL.Image:Error closing: Operation on closed image
+ERROR:app:Unexpected error in generate_progress: module 'PIL.Image' has no attribute 'ANTIALIAS'
+Traceback (most recent call last):
+  File "/home/runner/workspace/app.py", line 254, in generate_progress
+    resized_image = image.resize(video_resolution)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/moviepy/video/fx/resize.py", line 152, in resize
+    newclip = clip.fl_image(fl)
+              ^^^^^^^^^^^^^^^^^
+  File "<decorator-gen-72>", line 2, in fl_image
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/moviepy/decorators.py", line 14, in outplace
+    f(newclip, *a, **k)
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/moviepy/video/VideoClip.py", line 936, in fl_image
+    arr = image_func(self.get_frame(0))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/moviepy/video/fx/resize.py", line 150, in <lambda>
+    fl = lambda pic: resizer(pic.astype('uint8'), newsize)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/moviepy/video/fx/resize.py", line 37, in resizer
+    resized_pil = pilim.resize(newsize[::-1], Image.ANTIALIAS)
+                                              ^^^^^^^^^^^^^^^
+AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'
+INFO:werkzeug:172.31.196.49 - - [05/Oct/2024 16:12:08] "GET /create_video HTTP/1.1" 200 -
+INFO:app:Video creation process completed in 0.28 seconds
+INFO:app:Ending generate_progress function

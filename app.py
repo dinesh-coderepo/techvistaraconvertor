@@ -22,7 +22,6 @@ ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
 MAX_AUDIO_SIZE = 5 * 1024 * 1024  # 5MB max-limit for audio files
 MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB max-limit for image files
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -53,6 +52,14 @@ def list_audio_files():
         os.makedirs(audio_folder)
     audio_files = [f for f in os.listdir(audio_folder) if os.path.isfile(os.path.join(audio_folder, f))]
     return jsonify(audio_files)
+
+@app.route('/list_image_files', methods=['GET'])
+def list_image_files():
+    image_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'images')
+    if not os.path.exists(image_folder):
+        os.makedirs(image_folder)
+    image_files = [f for f in os.listdir(image_folder) if os.path.isfile(os.path.join(image_folder, f))]
+    return jsonify(image_files)
 
 @app.route('/list_video_files', methods=['GET'])
 def list_video_files():
@@ -141,6 +148,17 @@ def generate_video_filename(audio_filename):
     video_filename = f"{base_name}.mp4"
     return video_filename
 
+def get_audio_duration(audio_path):
+    ffprobe_cmd = [
+        'ffprobe',
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        audio_path
+    ]
+    result = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    return float(result.stdout)
+
 @app.route('/create_video', methods=['GET', 'POST'])
 @limiter.limit("5 per hour")
 def create_video():
@@ -154,14 +172,25 @@ def create_video():
         data = request.json or {}
         logger.debug(f'Received POST data: {data}')
         
-        audio_path = data.get('audio_path')
-        image_path = data.get('image_path')
+        audio_filename = data.get('audio_filename', '')
+        image_filename = data.get('image_filename', '')
+        audio_path = os.path.join(app.config['UPLOAD_FOLDER'], 'audio', audio_filename)
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'images', image_filename)
         resolution = data.get('resolution', '720p')
         quality = data.get('quality', 'medium')
         
-        if not audio_path or not image_path:
-            logger.error('Both audio and image are required')
-            return jsonify({'error': 'Both audio and image are required'}), 400
+        logger.info(f'Audio path: {audio_path}')
+        logger.info(f'Image path: {image_path}')
+        logger.info(f'Audio file exists: {os.path.exists(audio_path)}')
+        logger.info(f'Image file exists: {os.path.exists(image_path)}')
+        
+        if not audio_filename or not image_filename:
+            logger.error('Both audio and image filenames are required')
+            return jsonify({'error': 'Both audio and image filenames are required'}), 400
+        
+        if not os.path.exists(audio_path) or not os.path.exists(image_path):
+            logger.error('Audio or image file not found')
+            return jsonify({'error': 'Audio or image file not found'}), 404
         
         audio_size = os.path.getsize(audio_path)
         image_size = os.path.getsize(image_path)
@@ -170,6 +199,9 @@ def create_video():
         if total_size > 100 * 1024 * 1024:  # 100 MB limit
             logger.error(f'Combined file size too large: {total_size / (1024 * 1024):.2f} MB')
             return jsonify({'error': 'Combined file size too large. Please use smaller files.'}), 413
+        
+        audio_duration = get_audio_duration(audio_path)
+        flask.session['audio_duration'] = audio_duration
         
         flask.session['video_params'] = {
             'audio_path': audio_path,
@@ -189,6 +221,7 @@ def generate_progress():
     try:
         logger.info('Starting generate_progress function')
         video_params = flask.session.get('video_params')
+        audio_duration = flask.session.get('audio_duration', 0)
         if not video_params:
             logger.error('No video parameters found in session')
             yield f"data: {json.dumps({'error': 'No video parameters found'})}\n\n"
@@ -199,24 +232,16 @@ def generate_progress():
         resolution = video_params['resolution']
         quality = video_params['quality']
 
-        last_keep_alive = time.time()
-        last_progress = 0
-
         logger.info(f'Video creation parameters: audio={audio_path}, image={image_path}, resolution={resolution}, quality={quality}')
 
-        ffprobe_cmd = [
-            'ffprobe',
-            '-v',
-            'error',
-            '-show_entries',
-            'format=duration',
-            '-of',
-            'default=noprint_wrappers=1:nokey=1',
-            audio_path
-        ]
-        logger.debug(f'FFprobe command: {" ".join(ffprobe_cmd)}')
-        audio_duration = float(subprocess.check_output(ffprobe_cmd).decode('utf-8').strip())
-        logger.info(f'Audio duration: {audio_duration} seconds')
+        audio_filename = os.path.basename(audio_path)
+        video_filename = generate_video_filename(audio_filename)
+        video_path = os.path.join(app.config['UPLOAD_FOLDER'], 'videos', video_filename)
+        
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        
+        os.makedirs(os.path.dirname(video_path), exist_ok=True)
 
         if resolution == '480p':
             video_resolution = '640x480'
@@ -234,19 +259,8 @@ def generate_progress():
         else:
             video_bitrate = '4000k'
 
-        audio_filename = os.path.basename(audio_path)
-        video_filename = generate_video_filename(audio_filename)
-        video_path = os.path.join(app.config['UPLOAD_FOLDER'], 'videos', video_filename)
-        
-        # If the video file already exists, remove it
-        if os.path.exists(video_path):
-            os.remove(video_path)
-        
-        os.makedirs(os.path.dirname(video_path), exist_ok=True)
-
         ffmpeg_cmd = [
             'ffmpeg',
-            '-y',
             '-loop', '1',
             '-i', image_path,
             '-i', audio_path,
@@ -256,53 +270,34 @@ def generate_progress():
             '-b:a', '192k',
             '-pix_fmt', 'yuv420p',
             '-shortest',
-            '-s', video_resolution,
+            '-vf', f'scale={video_resolution}',
             '-b:v', video_bitrate,
-            '-progress', 'pipe:1',
             video_path
         ]
 
-        logger.debug(f'FFmpeg command: {" ".join(ffmpeg_cmd)}')
-
-        ffmpeg_start = time.time()
-        logger.info('Starting FFmpeg process')
         process = subprocess.Popen(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-
-        while True:
-            output = process.stdout.readline() if process.stdout else ''
-            if output == '' and process.poll() is not None:
-                logger.info('FFmpeg process completed')
-                break
-            if output:
-                logger.debug(f"FFmpeg output: {output.strip()}")
-                time_match = re.search(r"out_time_ms=(\d+)", output)
+        
+        for line in process.stderr:
+            if 'time=' in line:
+                time_match = re.search(r'time=(\d{2}:\d{2}:\d{2}\.\d{2})', line)
                 if time_match:
-                    current_time = int(time_match.group(1)) / 1000000  # Convert microseconds to seconds
-                    progress = min(int(current_time / audio_duration * 100), 100)
-                    if progress > last_progress:
-                        yield f"data: {json.dumps({'progress': progress})}\n\n"
-                        logger.debug(f'Video creation progress: {progress}%')
-                        last_progress = progress
-            
-            current_time = time.time()
-            if current_time - last_keep_alive > 2:
-                yield f"data: {json.dumps({'keep_alive': True, 'progress': last_progress})}\n\n"
-                last_keep_alive = current_time
-                logger.debug('Sent keep-alive message')
+                    time_str = time_match.group(1)
+                    time_parts = time_str.split(':')
+                    seconds = float(time_parts[0]) * 3600 + float(time_parts[1]) * 60 + float(time_parts[2])
+                    progress = min(int(seconds / float(audio_duration) * 100), 100)
+                    yield f"data: {json.dumps({'progress': progress})}\n\n"
+                    logger.debug(f'Video creation progress: {progress}%')
 
-        if process.returncode != 0:
-            error_output = process.stderr.read() if process.stderr else ''
-            logger.error(f"FFmpeg error: {error_output}")
-            raise subprocess.CalledProcessError(process.returncode, ffmpeg_cmd, stderr=error_output)
+        process.wait()
 
-        logger.info(f'FFmpeg process completed in {time.time() - ffmpeg_start:.2f} seconds')
-        logger.info(f'Video created successfully: {video_filename}')
-        yield f"data: {json.dumps({'message': 'Video created successfully', 'video_path': video_filename, 'download_url': f'/download_video/{video_filename}'})}\n\n"
+        if process.returncode == 0:
+            logger.info(f'Video created successfully: {video_filename}')
+            yield f"data: {json.dumps({'message': 'Video created successfully', 'video_path': video_filename, 'download_url': f'/download_video/{video_filename}'})}\n\n"
+        else:
+            error_output = process.stderr.read()
+            logger.error(f'Error creating video: {error_output}')
+            yield f"data: {json.dumps({'error': f'Error creating video: {error_output}'})}\n\n"
 
-    except subprocess.CalledProcessError as e:
-        logger.error(f'FFmpeg error: {str(e)}')
-        logger.error(f'FFmpeg stderr: {e.stderr}')
-        yield f"data: {json.dumps({'error': f'Error creating video: FFmpeg process failed'})}\n\n"
     except Exception as e:
         logger.error(f'Unexpected error in generate_progress: {str(e)}', exc_info=True)
         yield f"data: {json.dumps({'error': f'Unexpected server error: {str(e)}'})}\n\n"
