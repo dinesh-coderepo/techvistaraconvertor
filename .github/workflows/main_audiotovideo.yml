@@ -83,9 +83,3 @@ jobs:
           app-name: 'audiotovideo'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_93CF9BC8C9744640B4D6773BFAB2A0C9 }}
-
-      - name: 'Post-deployment setup'
-        env:
-          AZURE_WEBAPP_NAME: 'audiotovideo'
-        run: |
-          az webapp config set --resource-group <your-resource-group> --name $AZURE_WEBAPP_NAME --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 main:app"
