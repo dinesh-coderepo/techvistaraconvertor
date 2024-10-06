@@ -28,9 +28,27 @@ jobs:
           source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Set up project structure
+        run: |
+          mkdir -p uploads/audio uploads/images uploads/videos
+
+      - name: Set up environment variables
+        run: |
+          echo "FLASK_APP=app.py" >> .env
+          echo "FLASK_ENV=production" >> .env
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
 
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
 
@@ -65,3 +83,9 @@ jobs:
           app-name: 'audiotovideo'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_93CF9BC8C9744640B4D6773BFAB2A0C9 }}
+
+      - name: 'Post-deployment setup'
+        env:
+          AZURE_WEBAPP_NAME: 'audiotovideo'
+        run: |
+          az webapp config set --resource-group <your-resource-group> --name $AZURE_WEBAPP_NAME --startup-file "gunicorn --bind=0.0.0.0 --timeout 600 main:app"
